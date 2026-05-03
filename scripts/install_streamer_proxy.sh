@@ -17,7 +17,9 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git nano python3 python3-venv python3-pip systemd
+apt-get install -y --no-install-recommends ca-certificates curl git nano python3 python3-venv
+apt-get clean
+rm -rf /var/lib/apt/lists/*
 
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home "$APP_DIR/streamer_proxy" --shell /usr/sbin/nologin "$SERVICE_USER"
@@ -34,8 +36,9 @@ fi
 cd "$APP_DIR/streamer_proxy"
 python3 -m venv .venv
 . .venv/bin/activate
+python -m ensurepip --upgrade || true
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
 if [ ! -f .env ]; then
   cp .env.example .env
