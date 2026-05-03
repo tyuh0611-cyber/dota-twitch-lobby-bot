@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     twitch_refresh_token: str | None = None
     twitch_broadcaster_id: str | None = None
     twitch_moderator_id: str | None = None
+    twitch_redirect_uri: str = 'http://localhost:8081/twitch/callback'
+    twitch_scopes: str = 'moderator:read:chatters'
 
     dota_mock_mode: bool = True
     steam_username: str | None = None
