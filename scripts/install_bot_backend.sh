@@ -5,6 +5,10 @@ REPO_URL="${REPO_URL:-https://github.com/tyuh0611-cyber/dota-twitch-lobby-bot.gi
 APP_DIR="${APP_DIR:-/opt/dota-twitch-lobby-bot}"
 SERVICE_USER="dota-lobby-bot"
 INSTALL_DOCKER="${INSTALL_DOCKER:-true}"
+POSTGRES_CONTAINER="dota_twitch_lobby_postgres"
+POSTGRES_DB="dota_lobby"
+POSTGRES_USER="dota_lobby"
+POSTGRES_PASSWORD="change_me_for_local_tests"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root. Example: sudo bash scripts/install_bot_backend.sh"
@@ -21,7 +25,8 @@ apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git nano python3 python3-venv postgresql-client
 
 if [ "$INSTALL_DOCKER" = "true" ] && ! command -v docker >/dev/null 2>&1; then
-  apt-get install -y --no-install-recommends docker.io docker-compose-plugin
+  apt-get install -y --no-install-recommends docker.io
+  apt-get install -y --no-install-recommends docker-compose-plugin || true
   systemctl enable --now docker
 fi
 
@@ -42,7 +47,23 @@ fi
 
 if [ "$INSTALL_DOCKER" = "true" ]; then
   cd "$APP_DIR"
-  docker compose up -d postgres
+  if docker compose version >/dev/null 2>&1; then
+    docker compose up -d postgres
+  else
+    if ! docker ps -a --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
+      docker run -d \
+        --name "$POSTGRES_CONTAINER" \
+        --restart unless-stopped \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -p 5432:5432 \
+        -v dota_twitch_lobby_postgres_data:/var/lib/postgresql/data \
+        postgres:16-alpine
+    else
+      docker start "$POSTGRES_CONTAINER" || true
+    fi
+  fi
 fi
 
 cd "$APP_DIR/bot_backend"
