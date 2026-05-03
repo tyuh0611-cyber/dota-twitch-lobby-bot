@@ -25,8 +25,7 @@ apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git nano python3 python3-venv postgresql-client
 
 if [ "$INSTALL_DOCKER" = "true" ] && ! command -v docker >/dev/null 2>&1; then
-  apt-get install -y --no-install-recommends docker.io
-  apt-get install -y --no-install-recommends docker-compose-plugin || true
+  apt-get install -y --no-install-recommends docker.io docker-cli || apt-get install -y docker.io
   systemctl enable --now docker
 fi
 
@@ -47,22 +46,18 @@ fi
 
 if [ "$INSTALL_DOCKER" = "true" ]; then
   cd "$APP_DIR"
-  if docker compose version >/dev/null 2>&1; then
-    docker compose up -d postgres
+  if ! docker ps -a --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
+    docker run -d \
+      --name "$POSTGRES_CONTAINER" \
+      --restart unless-stopped \
+      -e POSTGRES_DB="$POSTGRES_DB" \
+      -e POSTGRES_USER="$POSTGRES_USER" \
+      -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+      -p 5432:5432 \
+      -v dota_twitch_lobby_postgres_data:/var/lib/postgresql/data \
+      postgres:16-alpine
   else
-    if ! docker ps -a --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
-      docker run -d \
-        --name "$POSTGRES_CONTAINER" \
-        --restart unless-stopped \
-        -e POSTGRES_DB="$POSTGRES_DB" \
-        -e POSTGRES_USER="$POSTGRES_USER" \
-        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-        -p 5432:5432 \
-        -v dota_twitch_lobby_postgres_data:/var/lib/postgresql/data \
-        postgres:16-alpine
-    else
-      docker start "$POSTGRES_CONTAINER" || true
-    fi
+    docker start "$POSTGRES_CONTAINER" || true
   fi
 fi
 
