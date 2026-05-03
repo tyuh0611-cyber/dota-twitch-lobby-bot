@@ -6,18 +6,26 @@ APP_DIR="${APP_DIR:-/opt/dota-twitch-lobby-bot}"
 SERVICE_USER="dota-streamer-proxy"
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Run as root: sudo bash scripts/install_streamer_proxy.sh"
+  echo "Run as root. Example: sudo bash scripts/install_streamer_proxy.sh"
   exit 1
 fi
 
+if ! command -v apt-get >/dev/null 2>&1; then
+  echo "This installer currently supports Debian/Ubuntu servers with apt-get."
+  exit 1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y git python3 python3-venv python3-pip
+apt-get install -y ca-certificates curl git nano python3 python3-venv python3-pip systemd
 
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home "$APP_DIR/streamer_proxy" --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
 
+mkdir -p "$APP_DIR"
 if [ ! -d "$APP_DIR/.git" ]; then
+  rm -rf "$APP_DIR"
   git clone "$REPO_URL" "$APP_DIR"
 else
   git -C "$APP_DIR" pull
@@ -41,7 +49,9 @@ cp "$APP_DIR/streamer_proxy/systemd/streamer-proxy.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable streamer-proxy
 
+echo ""
 echo "Installed streamer proxy."
-echo "Edit: nano $APP_DIR/streamer_proxy/.env"
-echo "Start: systemctl restart streamer-proxy"
-echo "Status: systemctl status streamer-proxy"
+echo "Next steps:"
+echo "1) nano $APP_DIR/streamer_proxy/.env"
+echo "2) systemctl restart streamer-proxy"
+echo "3) systemctl status streamer-proxy"
