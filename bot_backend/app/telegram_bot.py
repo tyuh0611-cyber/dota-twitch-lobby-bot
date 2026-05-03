@@ -1,20 +1,35 @@
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 
 from .config import settings
-from .crud import add_slots, blacklist_player, link_player, unblacklist_player
+from .crud import (
+    add_slots,
+    blacklist_player,
+    charge_slot_after_game,
+    link_player,
+    recent_slot_logs,
+    set_comment,
+    set_slots,
+    unblacklist_player,
+)
 from .db import SessionLocal
+from .keyboards import candidate_keyboard, settings_keyboard
 from .models import Player
 from .selection import select_next_player
 from .twitch_proxy_client import streamer_proxy
 
 router = Router()
+_runtime_settings = {'require_twitch_online': settings.require_twitch_online}
+
+
+def is_admin_user(user_id: int | None) -> bool:
+    return bool(user_id and user_id in settings.admin_ids)
 
 
 def is_admin(message: Message) -> bool:
-    return bool(message.from_user and message.from_user.id in settings.admin_ids)
+    return bool(message.from_user and is_admin_user(message.from_user.id))
 
 
 async def deny_if_not_admin(message: Message) -> bool:
@@ -24,21 +39,53 @@ async def deny_if_not_admin(message: Message) -> bool:
     return False
 
 
+async def deny_callback_if_not_admin(callback: CallbackQuery) -> bool:
+    if not is_admin_user(callback.from_user.id if callback.from_user else None):
+        await callback.answer('Access denied', show_alert=True)
+        return True
+    return False
+
+
+async def build_next_candidate_message() -> tuple[str, object | None]:
+    chatters = await streamer_proxy.get_chatters()
+    online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
+    async with SessionLocal() as session:
+        player = await select_next_player(session, online_names)
+    if not player:
+        return 'No suitable player found. Use /invite STEAM_ID manually or add/link more players.', None
+    text = (
+        'Next candidate:\n'
+        f'Twitch: {player.twitch_name or "-"}\n'
+        f'Dota name: {player.dota_name or "-"}\n'
+        f'Dota ID: {player.dota_id}\n'
+        f'Steam ID: {player.steam_id or "-"}\n'
+        f'Slots left: {player.slots_left}\n'
+        f'Games played: {player.games_played}\n'
+        f'Comment: {player.comment or "-"}'
+    )
+    return text, candidate_keyboard(player.steam_id, player.dota_id)
+
+
 @router.message(Command('start'))
 async def start(message: Message) -> None:
     if await deny_if_not_admin(message):
         return
     await message.answer(
         'Dota Twitch Lobby Bot MVP\n\n'
-        'Commands:\n'
+        'Main commands:\n'
         '/add DOTA_ID SLOTS\n'
+        '/setslots DOTA_ID SLOTS\n'
         '/link DOTA_ID TWITCH_NAME STEAM_ID [DOTA_NAME]\n'
         '/next\n'
         '/lobby\n'
         '/players\n'
         '/invite STEAM_ID\n'
+        '/charge DOTA_ID\n'
+        '/comment DOTA_ID text\n'
+        '/history DOTA_ID\n'
         '/blacklist DOTA_ID [reason]\n'
-        '/unblacklist DOTA_ID'
+        '/unblacklist DOTA_ID\n'
+        '/settings'
     )
 
 
@@ -50,15 +97,32 @@ async def cmd_add(message: Message) -> None:
     if len(parts) < 3:
         await message.answer('Usage: /add DOTA_ID SLOTS')
         return
-    dota_id, slots_raw = parts[1], parts[2]
     try:
-        slots = int(slots_raw)
+        slots = int(parts[2])
     except ValueError:
         await message.answer('SLOTS must be integer')
         return
     async with SessionLocal() as session:
-        player = await add_slots(session, dota_id=dota_id, slots=slots, created_by=str(message.from_user.id))
+        player = await add_slots(session, dota_id=parts[1], slots=slots, created_by=str(message.from_user.id))
     await message.answer(f'OK: {player.dota_id}\nslots_left: {player.slots_left}\nslots_total: {player.slots_total}')
+
+
+@router.message(Command('setslots'))
+async def cmd_setslots(message: Message) -> None:
+    if await deny_if_not_admin(message):
+        return
+    parts = message.text.split(maxsplit=2) if message.text else []
+    if len(parts) < 3:
+        await message.answer('Usage: /setslots DOTA_ID SLOTS')
+        return
+    try:
+        slots = int(parts[2])
+    except ValueError:
+        await message.answer('SLOTS must be integer')
+        return
+    async with SessionLocal() as session:
+        player = await set_slots(session, parts[1], slots, created_by=str(message.from_user.id))
+    await message.answer(f'Slots set: {player.dota_id}\nslots_left: {player.slots_left}')
 
 
 @router.message(Command('link'))
@@ -83,7 +147,7 @@ async def cmd_players(message: Message) -> None:
     if await deny_if_not_admin(message):
         return
     async with SessionLocal() as session:
-        result = await session.execute(select(Player).order_by(Player.slots_left.desc()).limit(20))
+        result = await session.execute(select(Player).order_by(Player.slots_left.desc()).limit(30))
         players = result.scalars().all()
     if not players:
         await message.answer('No players yet')
@@ -119,26 +183,11 @@ async def cmd_next(message: Message) -> None:
     if await deny_if_not_admin(message):
         return
     try:
-        chatters = await streamer_proxy.get_chatters()
+        text, keyboard = await build_next_candidate_message()
     except Exception as exc:
         await message.answer(f'Proxy error: {exc}')
         return
-    online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
-    async with SessionLocal() as session:
-        player = await select_next_player(session, online_names)
-    if not player:
-        await message.answer('No suitable player found. Use /invite STEAM_ID manually or add/link more players.')
-        return
-    await message.answer(
-        'Next candidate:\n'
-        f'Twitch: {player.twitch_name or "-"}\n'
-        f'Dota name: {player.dota_name or "-"}\n'
-        f'Dota ID: {player.dota_id}\n'
-        f'Steam ID: {player.steam_id or "-"}\n'
-        f'Slots left: {player.slots_left}\n'
-        f'Games played: {player.games_played}\n\n'
-        f'Invite: /invite {player.steam_id}' if player.steam_id else 'Steam ID missing. Use /link first.'
-    )
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(Command('invite'))
@@ -156,6 +205,58 @@ async def cmd_invite(message: Message) -> None:
         await message.answer(f'Invite error: {exc}')
         return
     await message.answer(f'Invite result: {result}')
+
+
+@router.message(Command('charge'))
+async def cmd_charge(message: Message) -> None:
+    if await deny_if_not_admin(message):
+        return
+    parts = message.text.split(maxsplit=1) if message.text else []
+    if len(parts) < 2:
+        await message.answer('Usage: /charge DOTA_ID')
+        return
+    async with SessionLocal() as session:
+        player = await charge_slot_after_game(session, parts[1], created_by=str(message.from_user.id))
+    if not player:
+        await message.answer('Player not found')
+        return
+    await message.answer(f'Charged after game:\n{player.dota_id}\nslots_left: {player.slots_left}\ngames_played: {player.games_played}')
+
+
+@router.message(Command('comment'))
+async def cmd_comment(message: Message) -> None:
+    if await deny_if_not_admin(message):
+        return
+    parts = message.text.split(maxsplit=2) if message.text else []
+    if len(parts) < 3:
+        await message.answer('Usage: /comment DOTA_ID text')
+        return
+    async with SessionLocal() as session:
+        player = await set_comment(session, parts[1], parts[2])
+    await message.answer('Comment saved' if player else 'Player not found')
+
+
+@router.message(Command('history'))
+async def cmd_history(message: Message) -> None:
+    if await deny_if_not_admin(message):
+        return
+    parts = message.text.split(maxsplit=1) if message.text else []
+    if len(parts) < 2:
+        await message.answer('Usage: /history DOTA_ID')
+        return
+    async with SessionLocal() as session:
+        logs = await recent_slot_logs(session, parts[1], limit=10)
+    if not logs:
+        await message.answer('No history')
+        return
+    await message.answer('\n'.join(f'{log.created_at}: {log.old_slots_left} -> {log.new_slots_left} ({log.reason})' for log in logs))
+
+
+@router.message(Command('settings'))
+async def cmd_settings(message: Message) -> None:
+    if await deny_if_not_admin(message):
+        return
+    await message.answer('Settings:', reply_markup=settings_keyboard(_runtime_settings['require_twitch_online']))
 
 
 @router.message(Command('blacklist'))
@@ -182,6 +283,48 @@ async def cmd_unblacklist(message: Message) -> None:
     async with SessionLocal() as session:
         player = await unblacklist_player(session, parts[1])
     await message.answer('Unblacklisted' if player else 'Player not found')
+
+
+@router.callback_query()
+async def callbacks(callback: CallbackQuery) -> None:
+    if await deny_callback_if_not_admin(callback):
+        return
+    data = callback.data or ''
+    if data == 'next_candidate':
+        text, keyboard = await build_next_candidate_message()
+        await callback.message.answer(text, reply_markup=keyboard)
+        await callback.answer()
+        return
+    if data == 'manual_help':
+        await callback.message.answer('Manual invite: /invite STEAM_ID')
+        await callback.answer()
+        return
+    if data == 'toggle_require_online':
+        _runtime_settings['require_twitch_online'] = not _runtime_settings['require_twitch_online']
+        await callback.message.answer('Changed for current runtime only.', reply_markup=settings_keyboard(_runtime_settings['require_twitch_online']))
+        await callback.answer()
+        return
+    if data.startswith('invite:'):
+        steam_id = data.split(':', 1)[1]
+        result = await streamer_proxy.invite(steam_id)
+        await callback.message.answer(f'Invite result: {result}')
+        await callback.answer()
+        return
+    if data.startswith('blacklist:'):
+        dota_id = data.split(':', 1)[1]
+        async with SessionLocal() as session:
+            await blacklist_player(session, dota_id, 'from_button')
+        await callback.message.answer(f'Blacklisted: {dota_id}')
+        await callback.answer()
+        return
+    if data.startswith('charge:'):
+        dota_id = data.split(':', 1)[1]
+        async with SessionLocal() as session:
+            player = await charge_slot_after_game(session, dota_id, created_by=str(callback.from_user.id))
+        await callback.message.answer(f'Charged: {dota_id}, slots_left: {player.slots_left if player else "not found"}')
+        await callback.answer()
+        return
+    await callback.answer('Unknown action')
 
 
 async def run_bot() -> None:
