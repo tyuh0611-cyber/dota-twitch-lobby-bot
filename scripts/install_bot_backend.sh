@@ -18,12 +18,15 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git nano python3 python3-venv python3-pip postgresql-client systemd
+apt-get install -y --no-install-recommends ca-certificates curl git nano python3 python3-venv postgresql-client
 
 if [ "$INSTALL_DOCKER" = "true" ] && ! command -v docker >/dev/null 2>&1; then
-  apt-get install -y docker.io docker-compose-plugin
+  apt-get install -y --no-install-recommends docker.io docker-compose-plugin
   systemctl enable --now docker
 fi
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
 
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home "$APP_DIR/bot_backend" --shell /usr/sbin/nologin "$SERVICE_USER"
@@ -45,8 +48,9 @@ fi
 cd "$APP_DIR/bot_backend"
 python3 -m venv .venv
 . .venv/bin/activate
+python -m ensurepip --upgrade || true
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
 if [ ! -f .env ]; then
   cp .env.example .env
