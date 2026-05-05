@@ -9,6 +9,11 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+  <div id="toast-root" class="toast-root">
+    {% if request and request.query_params.get('notice') %}
+      <div class="toast {{ request.query_params.get('level', 'success') }}">{{ request.query_params.get('notice') }}</div>
+    {% endif %}
+  </div>
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
@@ -19,11 +24,8 @@
         </div>
       </div>
       <nav>
-        <a href="/">Dashboard</a>
+        <a href="/">Control Center</a>
         <a href="/players">Players</a>
-        <a href="/queue">Queue</a>
-        <a href="/lobby">Lobby</a>
-        <a href="/settings">Settings</a>
         <a href="/logout">Logout</a>
       </nav>
     </aside>
