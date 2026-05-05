@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head">
+  <div><h1>Settings</h1><p>Queue strategy, Twitch filter and invite behavior.</p></div>
+</section>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>Queue rules</h2>
+    <form method="post" action="/settings" class="stack-form">
+      <label>Twitch online required
+        <select name="require_twitch_online">
+          <option value="true" {% if settings.require_twitch_online == 'true' %}selected{% endif %}>ON — only Twitch chatters</option>
+          <option value="false" {% if settings.require_twitch_online == 'false' %}selected{% endif %}>OFF — all eligible players</option>
+        </select>
+      </label>
+      <label>Special first Twitch names
+        <input name="special_first_twitch_names" value="{{ settings.special_first_twitch_names }}" placeholder="EZ25,another_login">
+      </label>
+      <label>Queue strategy
+        <select name="queue_strategy">
+          <option value="oldest_played" {% if settings.queue_strategy == 'oldest_played' %}selected{% endif %}>First who played longest ago</option>
+          <option value="most_slots" {% if settings.queue_strategy == 'most_slots' %}selected{% endif %}>First with most slots</option>
+          <option value="recent_slot" {% if settings.queue_strategy == 'recent_slot' %}selected{% endif %}>First who recently got slot</option>
+          <option value="recent_played" {% if settings.queue_strategy == 'recent_played' %}selected{% endif %}>First who played recently</option>
+          <option value="most_active" {% if settings.queue_strategy == 'most_active' %}selected{% endif %}>First most active</option>
+        </select>
+      </label>
+      <label>Invite timeout seconds
+        <input name="invite_timeout_seconds" type="number" min="5" max="600" value="{{ settings.invite_timeout_seconds }}">
+      </label>
+      <button class="btn primary" type="submit">Save settings</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Current logic</h2>
+    <p>Candidate filter:</p>
+    <ul class="info-list">
+      <li>Player is not blacklisted</li>
+      <li>Player has slots left &gt; 0</li>
+      <li>If Twitch filter is ON, Twitch name must be in chatters</li>
+      <li>Special names are always ranked first when eligible</li>
+      <li>Then selected by queue strategy</li>
+    </ul>
+    <a class="btn" href="/queue">Check next candidate</a>
+  </div>
+</div>
+{% endblock %}
