@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head">
+  <div><h1>Invite Queue</h1><p>Next suggested player based on current strategy.</p></div>
+  <a class="btn" href="/queue">Refresh</a>
+</section>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if player %}
+<div class="candidate-card">
+  <div>
+    <span class="eyebrow">Next candidate</span>
+    <h1>{{ player.dota_name or player.dota_id }}</h1>
+    <p>Twitch: {{ player.twitch_name or '-' }} · Steam: {{ player.steam_id or '-' }}</p>
+  </div>
+  <div class="candidate-actions">
+    <div class="stat-card"><span>Slots left</span><strong>{{ player.slots_left }}</strong></div>
+    <div class="stat-card"><span>Played</span><strong>{{ player.games_played }}</strong></div>
+    {% if player.steam_id %}
+    <form method="post" action="/invite/{{ player.steam_id }}"><button class="btn primary" type="submit">Send invite</button></form>
+    {% endif %}
+    <a class="btn" href="/player/{{ player.dota_id }}">Open profile</a>
+  </div>
+</div>
+{% else %}
+<div class="panel"><h2>No candidate found</h2><p>Add players, slots, links, or disable Twitch-online filter.</p></div>
+{% endif %}
+{% endblock %}
