@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+{% if not player %}
+<div class="panel"><h1>Player not found</h1><a class="btn" href="/players">Back</a></div>
+{% else %}
+<section class="page-head">
+  <div>
+    <h1>{{ player.dota_name or player.dota_id }}</h1>
+    <p>{{ player.twitch_name or 'No Twitch linked' }} · {{ player.steam_id or 'No Steam linked' }}</p>
+  </div>
+  {% if player.is_blacklisted %}<span class="badge danger">Blacklisted</span>{% else %}<span class="badge ok">Active</span>{% endif %}
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card"><span>Slots left</span><strong>{{ player.slots_left }}</strong></div>
+  <div class="stat-card"><span>Total slots</span><strong>{{ player.slots_total }}</strong></div>
+  <div class="stat-card"><span>Games played</span><strong>{{ player.games_played }}</strong></div>
+  <div class="stat-card"><span>Last played</span><strong>{{ player.last_played_at or '-' }}</strong></div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>Link data</h2>
+    <form method="post" action="/player/{{ player.dota_id }}/link" class="stack-form">
+      <label>Twitch name<input name="twitch_name" value="{{ player.twitch_name or '' }}"></label>
+      <label>Steam ID<input name="steam_id" value="{{ player.steam_id or '' }}"></label>
+      <label>Dota name<input name="dota_name" value="{{ player.dota_name or '' }}"></label>
+      <button class="btn primary" type="submit">Save links</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Actions</h2>
+    <form method="post" action="/player/{{ player.dota_id }}/slots" class="inline-form">
+      <input name="slots" type="number" value="{{ player.slots_left }}" required>
+      <button class="btn" type="submit">Set slots</button>
+    </form>
+    <form method="post" action="/player/{{ player.dota_id }}/charge"><button class="btn warn" type="submit">Charge -1 after game</button></form>
+    {% if player.is_blacklisted %}
+    <form method="post" action="/player/{{ player.dota_id }}/unblacklist"><button class="btn" type="submit">Unblacklist</button></form>
+    {% else %}
+    <form method="post" action="/player/{{ player.dota_id }}/blacklist" class="inline-form"><input name="reason" placeholder="Reason"><button class="btn danger" type="submit">Blacklist</button></form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Comment</h2>
+  <form method="post" action="/player/{{ player.dota_id }}/comment" class="stack-form">
+    <textarea name="comment" rows="3">{{ player.comment or '' }}</textarea>
+    <button class="btn primary" type="submit">Save comment</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Slot history</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Before</th><th>After</th><th>Change</th><th>Reason</th></tr></thead>
+    <tbody>
+    {% for log in logs %}
+      <tr><td>{{ log.created_at }}</td><td>{{ log.old_slots_left }}</td><td>{{ log.new_slots_left }}</td><td>{{ log.change_amount }}</td><td>{{ log.reason or '-' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
