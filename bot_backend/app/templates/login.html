@@ -4,12 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login - Dota Lobby</title>
+  <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="login-body">
   <form class="login-card" method="post" action="/login">
     <div class="brand login-brand">
-      <div class="brand-mark">D</div>
+      <img class="brand-logo" src="/static/assets/logo.svg" alt="Dota Lobby">
       <div>
         <div class="brand-title">Dota Lobby</div>
         <div class="brand-subtitle">Secure Dashboard</div>
@@ -20,5 +21,6 @@
     <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
     <button class="btn primary" type="submit">Enter</button>
   </form>
+  <script src="/static/app.js" defer></script>
 </body>
 </html>
