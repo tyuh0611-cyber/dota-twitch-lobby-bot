@@ -16,3 +16,5 @@ Use `.env.example` only.
 ## Current status
 
 This is a test/MVP scaffold. Dota Game Coordinator integration is represented by an adapter interface and mock implementation first, so the API/DB/Telegram flow can be tested safely before real Steam/Dota integration is connected.
+
+Repository is connected to ChatGPT GitHub connector.
