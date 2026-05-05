@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  if (csrfToken) {
+    document.querySelectorAll('form[method="post"], form[method="POST"]').forEach((form) => {
+      if (!form.querySelector('input[name="csrf_token"]')) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = csrfToken;
+        form.appendChild(input);
+      }
+    });
+  }
+
   document.querySelectorAll('.toast').forEach((toast) => {
     window.setTimeout(() => toast.classList.add('hide'), 3800);
     window.setTimeout(() => toast.remove(), 4500);
