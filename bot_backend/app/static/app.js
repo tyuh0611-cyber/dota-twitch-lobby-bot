@@ -1,18 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.toast').forEach((toast) => {
+    window.setTimeout(() => toast.classList.add('hide'), 3800);
+    window.setTimeout(() => toast.remove(), 4500);
+  });
+
   document.querySelectorAll('[data-confirm]').forEach((element) => {
     element.addEventListener('submit', (event) => {
       const message = element.getAttribute('data-confirm') || 'Confirm action?';
-      if (!window.confirm(message)) {
-        event.preventDefault();
-      }
+      if (!window.confirm(message)) event.preventDefault();
     });
   });
 
   document.querySelectorAll('[data-auto-refresh]').forEach((element) => {
     const seconds = Number(element.getAttribute('data-auto-refresh') || '0');
-    if (seconds > 0) {
-      window.setTimeout(() => window.location.reload(), seconds * 1000);
-    }
+    if (seconds > 0) window.setTimeout(() => window.location.reload(), seconds * 1000);
+  });
+
+  document.querySelectorAll('[data-stepper]').forEach((stepper) => {
+    const input = stepper.querySelector('input[type="number"]');
+    stepper.querySelectorAll('[data-step]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (!input) return;
+        const step = Number(button.getAttribute('data-step') || '1');
+        const min = input.min === '' ? -Infinity : Number(input.min);
+        const max = input.max === '' ? Infinity : Number(input.max);
+        const current = Number(input.value || '0');
+        input.value = String(Math.min(max, Math.max(min, current + step)));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
   });
 
   document.querySelectorAll('.editable').forEach((cell) => {
