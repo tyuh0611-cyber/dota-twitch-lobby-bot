@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         cell.textContent = newValue;
         cell.classList.add('edited');
+        if (row) row.classList.add('is-dirty');
       };
 
       input.addEventListener('blur', save);
