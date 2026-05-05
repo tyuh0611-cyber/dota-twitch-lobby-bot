@@ -94,10 +94,10 @@
         <td class="editable numeric" data-name="slots_left">{{ p.slots_left }}</td>
         <td>{{ p.games_played }}</td>
         <td class="editable comment-cell" data-name="comment">{{ p.comment or '' }}</td>
-        <td class="actions-cell">
+        <td class="actions-cell"><div class="row-actions">
           {% if p.steam_id %}<form method="post" action="/invite/{{ p.steam_id }}" data-confirm="Invite {{ p.dota_name or p.dota_id }}?"><input type="hidden" name="return_to" value="/"><button class="btn icon-btn invite-action" type="submit" title="Invite to lobby" aria-label="Invite to lobby"><span aria-hidden="true">▶</span></button></form>{% endif %}
           <form method="post" action="/player/{{ p.dota_id }}/delete" data-confirm="Delete {{ p.dota_name or p.dota_id }} from database? This cannot be undone."><input type="hidden" name="return_to" value="/"><button class="btn icon-btn delete-action" type="submit" title="Delete from database" aria-label="Delete from database"><span aria-hidden="true">🗑</span></button></form>
-        </td>
+        </div></td>
       </tr>
     {% endfor %}
     </tbody>
