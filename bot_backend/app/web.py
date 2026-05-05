@@ -1,17 +1,19 @@
 from urllib.parse import quote
+
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, func
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from .config import settings
 from .crud import add_slots, blacklist_player, charge_slot_after_game, link_player, set_comment, set_slots, unblacklist_player
 from .csrf import CSRF_COOKIE_NAME, csrf_guard, csrf_token_for_request
 from .db import get_session
-from .models import Player, PlayerSlotLog
-from .selection import ranked_queue_players, select_next_player
+from .models import InviteQueue, MatchPlayer, Player, PlayerSlotLog
+from .selection import ranked_queue_players
 from .settings_service import get_all_settings, set_setting
 from .twitch_proxy_client import streamer_proxy
 
@@ -156,6 +158,40 @@ async def web_set_slots(dota_id: str, slots: int = Form(...), session: AsyncSess
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Slots updated'), status_code=303)
 
 
+@app.post('/player/{dota_id}/field', dependencies=[Depends(csrf_guard)])
+async def web_autosave_field(
+    dota_id: str,
+    field: str = Form(...),
+    value: str = Form(''),
+    session: AsyncSession = Depends(get_session),
+):
+    player = (await session.execute(select(Player).where(Player.dota_id == dota_id))).scalar_one_or_none()
+    if not player:
+        return JSONResponse({'ok': False, 'error': 'Player not found'}, status_code=404)
+
+    value = value.strip()
+    try:
+        if field == 'slots_left':
+            await set_slots(session, dota_id, max(0, int(value or '0')), created_by='web_autosave')
+        elif field == 'comment':
+            await set_comment(session, dota_id, value or None)
+        elif field == 'twitch_name':
+            await link_player(session, dota_id, value or None, player.steam_id, player.dota_name)
+        elif field == 'steam_id':
+            await link_player(session, dota_id, player.twitch_name, value or None, player.dota_name)
+        elif field == 'dota_name':
+            await link_player(session, dota_id, player.twitch_name, player.steam_id, value or None)
+        else:
+            return JSONResponse({'ok': False, 'error': 'Field is not editable'}, status_code=400)
+    except ValueError:
+        return JSONResponse({'ok': False, 'error': 'Invalid number'}, status_code=400)
+    except IntegrityError:
+        await session.rollback()
+        return JSONResponse({'ok': False, 'error': 'Duplicate value'}, status_code=400)
+
+    return JSONResponse({'ok': True, 'field': field, 'value': value})
+
+
 @app.post('/player/{dota_id}/quick-edit', dependencies=[Depends(csrf_guard)])
 async def web_quick_edit_player(
     dota_id: str,
@@ -195,6 +231,20 @@ async def web_blacklist(dota_id: str, reason: str = Form(''), return_to: str = F
 async def web_unblacklist(dota_id: str, session: AsyncSession = Depends(get_session)):
     await unblacklist_player(session, dota_id)
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Player unblocked'), status_code=303)
+
+
+@app.post('/player/{dota_id}/delete', dependencies=[Depends(csrf_guard)])
+async def web_delete_player(dota_id: str, return_to: str = Form('/'), session: AsyncSession = Depends(get_session)):
+    player = (await session.execute(select(Player).where(Player.dota_id == dota_id))).scalar_one_or_none()
+    if not player:
+        return RedirectResponse(with_notice(return_to, f'Player {dota_id} not found', 'warning'), status_code=303)
+
+    await session.execute(update(MatchPlayer).where(MatchPlayer.player_id == player.id).values(player_id=None))
+    await session.execute(delete(InviteQueue).where(InviteQueue.player_id == player.id))
+    await session.execute(delete(PlayerSlotLog).where(PlayerSlotLog.player_id == player.id))
+    await session.delete(player)
+    await session.commit()
+    return RedirectResponse(with_notice(return_to, f'Deleted {dota_id} from database', 'warning'), status_code=303)
 
 
 @app.get('/lobby', response_class=HTMLResponse)
