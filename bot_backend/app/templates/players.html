@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head">
+  <div><h1>Players</h1><p>Manage Twitch, Steam, Dota IDs and slots.</p></div>
+</section>
+
+<div class="panel form-panel">
+  <form method="get" action="/players" class="inline-form">
+    <input name="q" value="{{ q }}" placeholder="Search Twitch / Dota / Steam">
+    <button class="btn" type="submit">Search</button>
+  </form>
+  <form method="post" action="/players/add" class="inline-form">
+    <input name="dota_id" placeholder="Dota ID" required>
+    <input name="slots" type="number" placeholder="Slots" required>
+    <button class="btn primary" type="submit">Add slots</button>
+  </form>
+</div>
+
+<div class="panel">
+  <table>
+    <thead><tr><th>Dota ID</th><th>Twitch</th><th>Dota name</th><th>Steam ID</th><th>Slots</th><th>Played</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for p in players %}
+      <tr>
+        <td><a href="/player/{{ p.dota_id }}">{{ p.dota_id }}</a></td>
+        <td>{{ p.twitch_name or '-' }}</td>
+        <td>{{ p.dota_name or '-' }}</td>
+        <td>{{ p.steam_id or '-' }}</td>
+        <td>{{ p.slots_left }}</td>
+        <td>{{ p.games_played }}</td>
+        <td>{% if p.is_blacklisted %}<span class="badge danger">blacklist</span>{% else %}<span class="badge ok">active</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
