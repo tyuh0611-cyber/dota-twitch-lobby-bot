@@ -1,67 +1,153 @@
 {% extends 'base.html' %}
 {% block content %}
-{% if not player %}
-<div class="panel"><h1>Player not found</h1><a class="btn" href="/players">Back</a></div>
-{% else %}
-<section class="page-head">
+<section class="page-head player-head">
   <div>
-    <h1>{{ player.dota_name or player.dota_id }}</h1>
-    <p>{{ player.twitch_name or 'No Twitch linked' }} · {{ player.steam_id or 'No Steam linked' }}</p>
-  </div>
-  {% if player.is_blacklisted %}<span class="badge danger">Blacklisted</span>{% else %}<span class="badge ok">Active</span>{% endif %}
-</section>
-
-<div class="stats-grid">
-  <div class="stat-card"><span>Slots left</span><strong>{{ player.slots_left }}</strong></div>
-  <div class="stat-card"><span>Total slots</span><strong>{{ player.slots_total }}</strong></div>
-  <div class="stat-card"><span>Games played</span><strong>{{ player.games_played }}</strong></div>
-  <div class="stat-card"><span>Last played</span><strong>{{ player.last_played_at or '-' }}</strong></div>
-</div>
-
-<div class="grid-2">
-  <div class="panel">
-    <h2>Link data</h2>
-    <form method="post" action="/player/{{ player.dota_id }}/link" class="stack-form">
-      <label>Twitch name<input name="twitch_name" value="{{ player.twitch_name or '' }}"></label>
-      <label>Steam ID<input name="steam_id" value="{{ player.steam_id or '' }}"></label>
-      <label>Dota name<input name="dota_name" value="{{ player.dota_name or '' }}"></label>
-      <button class="btn primary" type="submit">Save links</button>
-    </form>
-  </div>
-
-  <div class="panel">
-    <h2>Actions</h2>
-    <form method="post" action="/player/{{ player.dota_id }}/slots" class="inline-form">
-      <input name="slots" type="number" value="{{ player.slots_left }}" required>
-      <button class="btn" type="submit">Set slots</button>
-    </form>
-    <form method="post" action="/player/{{ player.dota_id }}/charge"><button class="btn warn" type="submit">Charge -1 after game</button></form>
-    {% if player.is_blacklisted %}
-    <form method="post" action="/player/{{ player.dota_id }}/unblacklist"><button class="btn" type="submit">Unblacklist</button></form>
+    <span class="eyebrow">Player profile</span>
+    {% if player %}
+      <h1>{{ player.dota_name or player.dota_id }}</h1>
+      <p>Dota ID: <span class="mono">{{ player.dota_id }}</span></p>
     {% else %}
-    <form method="post" action="/player/{{ player.dota_id }}/blacklist" class="inline-form"><input name="reason" placeholder="Reason"><button class="btn danger" type="submit">Blacklist</button></form>
+      <h1>Player not found</h1>
+      <p>This Dota ID is not present in the database.</p>
     {% endif %}
   </div>
+  <div class="head-actions">
+    <a class="btn" href="/">Back to Control Center</a>
+    <a class="btn" href="/players">Players</a>
+  </div>
+</section>
+
+{% if not player %}
+  <div class="panel empty-state">
+    <h2>No player found</h2>
+    <p>Go back to the Control Center and add this player by Dota ID.</p>
+  </div>
+{% else %}
+<div class="player-layout">
+  <section class="panel player-card main-player-card">
+    <div class="panel-head">
+      <h2>Overview</h2>
+      {% if player.is_blacklisted %}
+        <span class="badge danger">blacklisted</span>
+      {% else %}
+        <span class="badge ok">active</span>
+      {% endif %}
+    </div>
+
+    <div class="player-identity">
+      <div class="avatar-mark">{{ (player.dota_name or player.twitch_name or player.dota_id)[:1] }}</div>
+      <div>
+        <div class="player-name">{{ player.dota_name or 'No Dota name' }}</div>
+        <div class="muted mono">{{ player.dota_id }}</div>
+      </div>
+    </div>
+
+    <div class="profile-stats">
+      <div><span>Slots left</span><strong>{{ player.slots_left }}</strong></div>
+      <div><span>Total slots</span><strong>{{ player.slots_total }}</strong></div>
+      <div><span>Games played</span><strong>{{ player.games_played }}</strong></div>
+    </div>
+
+    <div class="profile-facts">
+      <div><span>Twitch</span><strong>{{ player.twitch_name or '—' }}</strong></div>
+      <div><span>Steam ID</span><strong class="mono">{{ player.steam_id or '—' }}</strong></div>
+      <div><span>Comment</span><strong>{{ player.comment or '—' }}</strong></div>
+      {% if player.blacklist_reason %}<div><span>Blacklist reason</span><strong>{{ player.blacklist_reason }}</strong></div>{% endif %}
+    </div>
+  </section>
+
+  <section class="panel player-card">
+    <div class="panel-head"><h2>Edit player</h2><span class="muted">saved by form</span></div>
+    <form method="post" action="/player/{{ player.dota_id }}/link" class="profile-form">
+      <label>Twitch name
+        <input name="twitch_name" value="{{ player.twitch_name or '' }}" placeholder="Twitch login">
+      </label>
+      <label>Dota name
+        <input name="dota_name" value="{{ player.dota_name or '' }}" placeholder="Visible Dota name">
+      </label>
+      <label>Steam ID
+        <input name="steam_id" value="{{ player.steam_id or '' }}" placeholder="Steam ID">
+      </label>
+      <button class="btn primary" type="submit">Save profile</button>
+    </form>
+  </section>
+
+  <section class="panel player-card">
+    <div class="panel-head"><h2>Slots & comment</h2><span class="muted">quick update</span></div>
+    <form method="post" action="/player/{{ player.dota_id }}/slots" class="profile-form compact-profile-form">
+      <label>Slots left
+        <input name="slots" type="number" min="0" value="{{ player.slots_left }}">
+      </label>
+      <button class="btn primary" type="submit">Set slots</button>
+    </form>
+    <form method="post" action="/player/{{ player.dota_id }}/comment" class="profile-form">
+      <label>Comment
+        <textarea name="comment" rows="4" placeholder="Internal note">{{ player.comment or '' }}</textarea>
+      </label>
+      <button class="btn" type="submit">Save comment</button>
+    </form>
+  </section>
+
+  <section class="panel player-card player-actions-card">
+    <div class="panel-head"><h2>Actions</h2><span class="muted">careful</span></div>
+    <div class="player-action-grid">
+      {% if player.steam_id %}
+      <form method="post" action="/invite/{{ player.steam_id }}" data-confirm="Invite {{ player.dota_name or player.dota_id }}?">
+        <input type="hidden" name="return_to" value="/player/{{ player.dota_id }}">
+        <button class="btn primary" type="submit">Invite to lobby</button>
+      </form>
+      {% else %}
+      <button class="btn" type="button" disabled>No Steam ID</button>
+      {% endif %}
+
+      <form method="post" action="/player/{{ player.dota_id }}/charge" data-confirm="Charge -1 slot?">
+        <input type="hidden" name="return_to" value="/player/{{ player.dota_id }}">
+        <button class="btn warn" type="submit">Charge -1 slot</button>
+      </form>
+
+      {% if player.is_blacklisted %}
+      <form method="post" action="/player/{{ player.dota_id }}/unblacklist">
+        <button class="btn" type="submit">Unblock player</button>
+      </form>
+      {% else %}
+      <form method="post" action="/player/{{ player.dota_id }}/blacklist" data-confirm="Blacklist {{ player.dota_name or player.dota_id }}?">
+        <input type="hidden" name="return_to" value="/player/{{ player.dota_id }}">
+        <input name="reason" value="manual_blacklist" type="hidden">
+        <button class="btn danger" type="submit">Blacklist</button>
+      </form>
+      {% endif %}
+
+      <form method="post" action="/player/{{ player.dota_id }}/delete" data-confirm="Delete {{ player.dota_name or player.dota_id }} from database? This cannot be undone.">
+        <input type="hidden" name="return_to" value="/">
+        <button class="btn danger" type="submit">Delete from DB</button>
+      </form>
+    </div>
+  </section>
 </div>
 
-<div class="panel">
-  <h2>Comment</h2>
-  <form method="post" action="/player/{{ player.dota_id }}/comment" class="stack-form">
-    <textarea name="comment" rows="3">{{ player.comment or '' }}</textarea>
-    <button class="btn primary" type="submit">Save comment</button>
-  </form>
-</div>
-
-<div class="panel">
-  <h2>Slot history</h2>
-  <table>
-    <thead><tr><th>Time</th><th>Before</th><th>After</th><th>Change</th><th>Reason</th></tr></thead>
+<section class="panel player-log-panel">
+  <div class="table-title"><h2>Slot history</h2><span>{{ logs|length }} latest records</span></div>
+  {% if logs %}
+  <table class="log-table">
+    <thead>
+      <tr><th>Date</th><th>Change</th><th>Old</th><th>New</th><th>Reason</th><th>By</th></tr>
+    </thead>
     <tbody>
-    {% for log in logs %}
-      <tr><td>{{ log.created_at }}</td><td>{{ log.old_slots_left }}</td><td>{{ log.new_slots_left }}</td><td>{{ log.change_amount }}</td><td>{{ log.reason or '-' }}</td></tr>
-    {% endfor %}
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.created_at }}</td>
+        <td><strong>{% if log.change_amount > 0 %}+{% endif %}{{ log.change_amount }}</strong></td>
+        <td>{{ log.old_slots_left }}</td>
+        <td>{{ log.new_slots_left }}</td>
+        <td>{{ log.reason or '—' }}</td>
+        <td>{{ log.created_by or '—' }}</td>
+      </tr>
+      {% endfor %}
     </tbody>
   </table>
-</div>
+  {% else %}
+    <div class="empty-state"><h2>No slot history yet</h2><p>Slot changes will appear here.</p></div>
+  {% endif %}
+</section>
 {% endif %}
 {% endblock %}
