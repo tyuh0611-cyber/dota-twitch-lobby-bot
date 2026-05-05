@@ -1,0 +1,160 @@
+.player-head {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(216,75,52,.14), rgba(18,24,33,.92));
+  box-shadow: var(--shadow);
+}
+
+.player-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(300px, .9fr);
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.player-card {
+  margin-bottom: 0;
+}
+
+.main-player-card {
+  grid-row: span 2;
+}
+
+.player-identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 0 14px;
+}
+
+.avatar-mark {
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(216,75,52,.34), rgba(240,165,58,.18));
+  border: 1px solid rgba(240,165,58,.26);
+  font-size: 26px;
+  font-weight: 950;
+  color: #ffe3b3;
+  text-transform: uppercase;
+}
+
+.player-name {
+  font-size: 24px;
+  font-weight: 950;
+  letter-spacing: -.03em;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.profile-stats div,
+.profile-facts div {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.025);
+  border-radius: 13px;
+  padding: 10px;
+}
+
+.profile-stats span,
+.profile-facts span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.profile-stats strong {
+  display: block;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.profile-facts {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-facts strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--soft);
+}
+
+.profile-form {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-form + .profile-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.compact-profile-form {
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: end;
+}
+
+.player-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.player-action-grid form,
+.player-action-grid button {
+  width: 100%;
+}
+
+.player-log-panel {
+  padding: 0;
+  overflow: auto;
+}
+
+.log-table {
+  min-width: 760px;
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 1180px) {
+  .player-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .main-player-card {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .player-head {
+    display: block;
+  }
+
+  .profile-stats,
+  .player-action-grid,
+  .compact-profile-form {
+    grid-template-columns: 1fr;
+  }
+
+  .player-name {
+    font-size: 21px;
+  }
+}
