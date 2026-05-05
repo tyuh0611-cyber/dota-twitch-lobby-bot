@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title or 'Dota Lobby Dashboard' }}</title>
+  <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">D</div>
+        <img class="brand-logo" src="/static/assets/logo.svg" alt="Dota Lobby">
         <div>
           <div class="brand-title">Dota Lobby</div>
           <div class="brand-subtitle">Streamer Control</div>
@@ -28,5 +30,7 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script src="/static/app.js" defer></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
