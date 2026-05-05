@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or 'Dota Lobby Dashboard' }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">D</div>
+        <div>
+          <div class="brand-title">Dota Lobby</div>
+          <div class="brand-subtitle">Streamer Control</div>
+        </div>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/players">Players</a>
+        <a href="/queue">Queue</a>
+        <a href="/lobby">Lobby</a>
+        <a href="/logout">Logout</a>
+      </nav>
+    </aside>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
