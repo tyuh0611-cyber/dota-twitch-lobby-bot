@@ -18,7 +18,7 @@
   </div>
 </section>
 
-<div class="control-stack">
+<div class="control-stack control-stack-3">
   <div class="panel control-panel settings-panel">
     <div class="panel-head"><h2>Settings</h2><span class="muted">applies immediately</span></div>
     <form method="post" action="/settings" class="settings-grid">
@@ -46,6 +46,25 @@
       </label>
       <button class="btn primary" type="submit">Save settings</button>
     </form>
+  </div>
+
+  <div class="panel control-panel twitch-panel">
+    <div class="panel-head">
+      <h2>Twitch</h2>
+      {% if twitch_status.connected %}
+        <span class="badge ok">connected</span>
+      {% else %}
+        <span class="badge danger">not connected</span>
+      {% endif %}
+    </div>
+    <div class="twitch-status-grid">
+      <div><span>Chatters</span><strong>{{ twitch_status.chatters_count }}</strong></div>
+      <div><span>Queue filter</span><strong>{% if twitch_status.require_online %}online required{% else %}not required{% endif %}</strong></div>
+    </div>
+    {% if twitch_status.error %}
+      <div class="alert compact-alert">{{ twitch_status.error }}</div>
+    {% endif %}
+    <a class="btn" href="/twitch/connect">Connect / reconnect Twitch</a>
   </div>
 
   <div class="panel control-panel lobby-panel">
