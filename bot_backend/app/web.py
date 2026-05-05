@@ -9,7 +9,7 @@ from .config import settings
 from .crud import add_slots, blacklist_player, charge_slot_after_game, link_player, set_comment, set_slots, unblacklist_player
 from .db import get_session
 from .models import Player, PlayerSlotLog
-from .selection import select_next_player
+from .selection import ranked_queue_players, select_next_player
 from .settings_service import get_all_settings, set_setting
 from .twitch_proxy_client import streamer_proxy
 
@@ -60,14 +60,7 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
     total_slots = await session.scalar(select(func.coalesce(func.sum(Player.slots_left), 0))) or 0
     result = await session.execute(select(Player).order_by(Player.slots_left.desc()).limit(8))
     players = result.scalars().all()
-    return templates.TemplateResponse('dashboard.html', {
-        'request': request,
-        'total_players': total_players,
-        'active_players': active_players,
-        'blacklisted': blacklisted,
-        'total_slots': total_slots,
-        'players': players,
-    })
+    return templates.TemplateResponse('dashboard.html', {'request': request, 'total_players': total_players, 'active_players': active_players, 'blacklisted': blacklisted, 'total_slots': total_slots, 'players': players})
 
 
 @app.get('/players', response_class=HTMLResponse)
@@ -78,9 +71,7 @@ async def players_page(request: Request, q: str = '', session: AsyncSession = De
     stmt = select(Player).order_by(Player.slots_left.desc(), Player.updated_at.desc()).limit(200)
     if q:
         like = f'%{q}%'
-        stmt = select(Player).where(
-            (Player.dota_id.ilike(like)) | (Player.twitch_name.ilike(like)) | (Player.dota_name.ilike(like)) | (Player.steam_id.ilike(like))
-        ).order_by(Player.slots_left.desc()).limit(200)
+        stmt = select(Player).where((Player.dota_id.ilike(like)) | (Player.twitch_name.ilike(like)) | (Player.dota_name.ilike(like)) | (Player.steam_id.ilike(like))).order_by(Player.slots_left.desc()).limit(200)
     result = await session.execute(stmt)
     return templates.TemplateResponse('players.html', {'request': request, 'players': result.scalars().all(), 'q': q})
 
@@ -115,10 +106,27 @@ async def web_set_slots(dota_id: str, slots: int = Form(...), session: AsyncSess
     return RedirectResponse(f'/player/{dota_id}', status_code=303)
 
 
+@app.post('/player/{dota_id}/quick-edit')
+async def web_quick_edit_player(
+    dota_id: str,
+    twitch_name: str = Form(''),
+    steam_id: str = Form(''),
+    dota_name: str = Form(''),
+    slots_left: int = Form(...),
+    comment: str = Form(''),
+    return_to: str = Form('/queue'),
+    session: AsyncSession = Depends(get_session),
+):
+    await link_player(session, dota_id, twitch_name or None, steam_id or None, dota_name or None)
+    await set_slots(session, dota_id, slots_left, created_by='web_inline')
+    await set_comment(session, dota_id, comment or None)
+    return RedirectResponse(return_to, status_code=303)
+
+
 @app.post('/player/{dota_id}/charge')
-async def web_charge(dota_id: str, session: AsyncSession = Depends(get_session)):
+async def web_charge(dota_id: str, return_to: str = Form(None), session: AsyncSession = Depends(get_session)):
     await charge_slot_after_game(session, dota_id, created_by='web')
-    return RedirectResponse(f'/player/{dota_id}', status_code=303)
+    return RedirectResponse(return_to or f'/player/{dota_id}', status_code=303)
 
 
 @app.post('/player/{dota_id}/comment')
@@ -128,9 +136,9 @@ async def web_comment(dota_id: str, comment: str = Form(''), session: AsyncSessi
 
 
 @app.post('/player/{dota_id}/blacklist')
-async def web_blacklist(dota_id: str, reason: str = Form(''), session: AsyncSession = Depends(get_session)):
+async def web_blacklist(dota_id: str, reason: str = Form(''), return_to: str = Form(None), session: AsyncSession = Depends(get_session)):
     await blacklist_player(session, dota_id, reason or 'web')
-    return RedirectResponse(f'/player/{dota_id}', status_code=303)
+    return RedirectResponse(return_to or f'/player/{dota_id}', status_code=303)
 
 
 @app.post('/player/{dota_id}/unblacklist')
@@ -159,20 +167,35 @@ async def queue_page(request: Request, session: AsyncSession = Depends(get_sessi
     if redirect:
         return redirect
     error = None
-    player = None
+    ranked = []
+    queue_settings = {}
     try:
         chatters = await streamer_proxy.get_chatters()
         online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
-        player = await select_next_player(session, online_names)
+        ranked, queue_settings = await ranked_queue_players(session, online_names)
     except Exception as exc:
         error = str(exc)
-    return templates.TemplateResponse('queue.html', {'request': request, 'player': player, 'error': error})
+    return templates.TemplateResponse('queue.html', {'request': request, 'ranked': ranked, 'settings': queue_settings, 'error': error})
 
 
 @app.post('/invite/{steam_id}')
-async def web_invite(steam_id: str):
+async def web_invite(steam_id: str, return_to: str = Form('/queue')):
     await streamer_proxy.invite(steam_id)
-    return RedirectResponse('/queue', status_code=303)
+    return RedirectResponse(return_to, status_code=303)
+
+
+@app.post('/quick-invite')
+async def web_quick_invite(limit: int = Form(1), session: AsyncSession = Depends(get_session)):
+    chatters = await streamer_proxy.get_chatters()
+    online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
+    ranked, _ = await ranked_queue_players(session, online_names)
+    sent = 0
+    for item in ranked[:max(1, min(limit, 10))]:
+        player = item['player']
+        if player.steam_id:
+            await streamer_proxy.invite(player.steam_id)
+            sent += 1
+    return RedirectResponse(f'/queue?sent={sent}', status_code=303)
 
 
 @app.get('/settings', response_class=HTMLResponse)
@@ -185,21 +208,11 @@ async def settings_page(request: Request, session: AsyncSession = Depends(get_se
 
 
 @app.post('/settings')
-async def settings_save(
-    require_twitch_online: str = Form(...),
-    special_first_twitch_names: str = Form(''),
-    queue_strategy: str = Form(...),
-    invite_timeout_seconds: int = Form(...),
-    session: AsyncSession = Depends(get_session),
-):
+async def settings_save(require_twitch_online: str = Form(...), special_first_twitch_names: str = Form(''), queue_strategy: str = Form(...), invite_timeout_seconds: int = Form(...), session: AsyncSession = Depends(get_session)):
     allowed_strategies = {'oldest_played', 'most_slots', 'recent_slot', 'recent_played', 'most_active'}
     if queue_strategy not in allowed_strategies:
         queue_strategy = 'oldest_played'
-    if invite_timeout_seconds < 5:
-        invite_timeout_seconds = 5
-    if invite_timeout_seconds > 600:
-        invite_timeout_seconds = 600
-
+    invite_timeout_seconds = min(max(invite_timeout_seconds, 5), 600)
     await set_setting(session, 'require_twitch_online', 'true' if require_twitch_online == 'true' else 'false')
     await set_setting(session, 'special_first_twitch_names', special_first_twitch_names.strip())
     await set_setting(session, 'queue_strategy', queue_strategy)
