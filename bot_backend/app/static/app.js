@@ -12,6 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const showToast = (message, level = 'success') => {
+    const root = document.querySelector('#toast-root');
+    if (!root) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${level}`;
+    toast.textContent = message;
+    root.appendChild(toast);
+    window.setTimeout(() => toast.classList.add('hide'), 2800);
+    window.setTimeout(() => toast.remove(), 3500);
+  };
+
   document.querySelectorAll('.toast').forEach((toast) => {
     window.setTimeout(() => toast.classList.add('hide'), 3800);
     window.setTimeout(() => toast.remove(), 4500);
@@ -44,8 +55,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const autosaveCell = async (cell, newValue, oldValue) => {
+    const row = cell.closest('tr');
+    const dotaId = row ? row.getAttribute('data-dota-id') : '';
+    const field = cell.getAttribute('data-name');
+    if (!row || !dotaId || !field) return false;
+    if (newValue === oldValue) return true;
+
+    cell.textContent = newValue;
+    cell.classList.add('saving');
+    row.classList.add('is-dirty');
+
+    const body = new URLSearchParams();
+    body.set('csrf_token', csrfToken);
+    body.set('field', field);
+    body.set('value', newValue);
+
+    try {
+      const response = await fetch(`/player/${encodeURIComponent(dotaId)}/field`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Save failed');
+      }
+      cell.classList.remove('saving');
+      cell.classList.add('edited');
+      row.classList.remove('is-dirty');
+      row.classList.add('is-saved');
+      window.setTimeout(() => row.classList.remove('is-saved'), 900);
+      showToast('Saved', 'success');
+      return true;
+    } catch (error) {
+      cell.classList.remove('saving');
+      cell.classList.add('save-error');
+      cell.textContent = oldValue;
+      row.classList.remove('is-dirty');
+      showToast(error.message || 'Save failed', 'error');
+      window.setTimeout(() => cell.classList.remove('save-error'), 1500);
+      return false;
+    }
+  };
+
   document.querySelectorAll('.editable').forEach((cell) => {
-    cell.title = 'Double-click to edit';
+    cell.title = 'Double-click to edit. Enter or click outside saves automatically.';
     cell.addEventListener('dblclick', () => {
       if (cell.querySelector('input')) return;
       const oldValue = cell.textContent.trim();
@@ -57,29 +112,27 @@ document.addEventListener('DOMContentLoaded', () => {
       input.focus();
       input.select();
 
-      const save = () => {
+      let isClosing = false;
+      const finish = async (shouldSave = true) => {
+        if (isClosing) return;
+        isClosing = true;
         const newValue = input.value.trim();
-        const name = cell.getAttribute('data-name');
-        const row = cell.closest('tr');
-        const form = row ? row.querySelector('.inline-save-form') : null;
-        if (form && name) {
-          const hidden = form.querySelector(`input[name="${name}"]`);
-          if (hidden) hidden.value = newValue;
+        if (!shouldSave) {
+          cell.textContent = oldValue;
+          return;
         }
-        cell.textContent = newValue;
-        cell.classList.add('edited');
-        if (row) row.classList.add('is-dirty');
+        await autosaveCell(cell, newValue, oldValue);
       };
 
-      input.addEventListener('blur', save);
+      input.addEventListener('blur', () => finish(true));
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
-          input.blur();
+          finish(true);
         }
         if (event.key === 'Escape') {
           event.preventDefault();
-          cell.textContent = oldValue;
+          finish(false);
         }
       });
     });
