@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title or 'Dota Lobby Dashboard' }}</title>
-  <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/assets/logo.svg?v=2" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
@@ -12,7 +12,7 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <img class="brand-logo" src="/static/assets/logo.svg" alt="Dota Lobby">
+        <img class="brand-logo" src="/static/assets/logo.svg?v=2" alt="Dota Lobby">
         <div>
           <div class="brand-title">Dota Lobby</div>
           <div class="brand-subtitle">Streamer Control</div>
@@ -23,6 +23,7 @@
         <a href="/players">Players</a>
         <a href="/queue">Queue</a>
         <a href="/lobby">Lobby</a>
+        <a href="/settings">Settings</a>
         <a href="/logout">Logout</a>
       </nav>
     </aside>
