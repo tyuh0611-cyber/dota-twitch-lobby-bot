@@ -1,5 +1,6 @@
 from urllib.parse import quote
 
+import httpx
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +46,18 @@ def render_template(template_name: str, context: dict, request: Request):
     return response
 
 
+async def get_twitch_auth_redirect_url() -> str | None:
+    proxy_url = settings.streamer_proxy_url.rstrip('/')
+    headers = {'X-Api-Key': settings.streamer_proxy_api_key}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(f'{proxy_url}/twitch/auth-url', headers=headers)
+        response.raise_for_status()
+        data = response.json()
+    if isinstance(data, dict):
+        return data.get('auth_url') or data.get('url') or data.get('redirect_url')
+    return None
+
+
 async def control_center_context(request: Request, session: AsyncSession) -> dict:
     total_players = await session.scalar(select(func.count(Player.id))) or 0
     active_players = await session.scalar(select(func.count(Player.id)).where(Player.slots_left > 0, Player.is_blacklisted.is_(False))) or 0
@@ -56,16 +69,38 @@ async def control_center_context(request: Request, session: AsyncSession) -> dic
     lobby_error = None
     ranked = []
     queue_error = None
+    chatters = []
+    twitch_error = None
+    twitch_status = {
+        'connected': False,
+        'chatters_count': 0,
+        'require_online': queue_settings.get('require_twitch_online', 'false') == 'true',
+        'error': None,
+    }
+
     try:
         lobby = await streamer_proxy.get_lobby()
     except Exception as exc:
         lobby_error = str(exc)
+
     try:
         chatters = await streamer_proxy.get_chatters()
         online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
+        twitch_status.update({
+            'connected': True,
+            'chatters_count': len(online_names),
+            'error': None,
+        })
         ranked, queue_settings = await ranked_queue_players(session, online_names)
+        twitch_status['require_online'] = queue_settings.get('require_twitch_online', 'false') == 'true'
     except Exception as exc:
+        twitch_error = str(exc)
         queue_error = str(exc)
+        twitch_status.update({
+            'connected': False,
+            'chatters_count': 0,
+            'error': twitch_error,
+        })
 
     result = await session.execute(select(Player).order_by(Player.slots_left.desc(), Player.updated_at.desc()).limit(80))
     players = result.scalars().all()
@@ -82,6 +117,7 @@ async def control_center_context(request: Request, session: AsyncSession) -> dic
         'lobby': lobby,
         'lobby_error': lobby_error,
         'queue_error': queue_error,
+        'twitch_status': twitch_status,
     }
 
 
@@ -105,6 +141,20 @@ async def logout():
     response.delete_cookie('web_auth')
     response.delete_cookie(CSRF_COOKIE_NAME)
     return response
+
+
+@app.get('/twitch/connect')
+async def twitch_connect(request: Request):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+    try:
+        auth_url = await get_twitch_auth_redirect_url()
+    except Exception as exc:
+        return RedirectResponse(with_notice('/', f'Twitch auth unavailable: {exc}', 'error'), status_code=303)
+    if not auth_url:
+        return RedirectResponse(with_notice('/', 'Twitch auth URL is empty', 'error'), status_code=303)
+    return RedirectResponse(auth_url, status_code=303)
 
 
 @app.get('/', response_class=HTMLResponse)
