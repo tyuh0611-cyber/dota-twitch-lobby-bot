@@ -75,7 +75,7 @@
 </div>
 
 <div class="panel table-panel" id="queue-table">
-  <div class="table-title"><h2>Priority queue</h2><span>Double-click cells to edit, then Save row.</span></div>
+  <div class="table-title"><h2>Priority queue</h2><span>Double-click cells to edit. Changes save automatically on Enter or click outside.</span></div>
   {% if queue_error %}<div class="alert inside">{{ queue_error }}</div>{% endif %}
   {% if ranked %}
   <table class="queue-table">
@@ -85,7 +85,7 @@
     <tbody>
     {% for item in ranked %}
       {% set p = item.player %}
-      <tr class="queue-row {% if loop.first %}top-row{% endif %}">
+      <tr class="queue-row {% if loop.first %}top-row{% endif %}" data-dota-id="{{ p.dota_id }}">
         <td><span class="rank-pill">{{ item.rank }}</span></td>
         <td><div class="reason-text">{{ item.reason }}</div><div class="mini-flags">{% if item.is_special %}<span class="badge warn-badge">special</span>{% endif %}{% if item.is_online %}<span class="badge ok">online</span>{% endif %}</div></td>
         <td class="editable" data-name="twitch_name">{{ p.twitch_name or '' }}</td>
@@ -95,10 +95,8 @@
         <td>{{ p.games_played }}</td>
         <td class="editable comment-cell" data-name="comment">{{ p.comment or '' }}</td>
         <td class="actions-cell">
-          <form method="post" action="/player/{{ p.dota_id }}/quick-edit" class="inline-save-form"><input type="hidden" name="return_to" value="/"><input type="hidden" name="twitch_name" value="{{ p.twitch_name or '' }}"><input type="hidden" name="steam_id" value="{{ p.steam_id or '' }}"><input type="hidden" name="dota_name" value="{{ p.dota_name or '' }}"><input type="hidden" name="slots_left" value="{{ p.slots_left }}"><input type="hidden" name="comment" value="{{ p.comment or '' }}"><button class="btn icon-btn save-action" type="submit" title="Save row" aria-label="Save row"><span aria-hidden="true">✓</span></button></form>
           {% if p.steam_id %}<form method="post" action="/invite/{{ p.steam_id }}" data-confirm="Invite {{ p.dota_name or p.dota_id }}?"><input type="hidden" name="return_to" value="/"><button class="btn icon-btn invite-action" type="submit" title="Invite to lobby" aria-label="Invite to lobby"><span aria-hidden="true">▶</span></button></form>{% endif %}
-          <form method="post" action="/player/{{ p.dota_id }}/charge" data-confirm="Charge -1 slot?"><input type="hidden" name="return_to" value="/"><button class="btn icon-btn charge-action" type="submit" title="Charge -1 slot" aria-label="Charge minus one slot"><span aria-hidden="true">−1</span></button></form>
-          <form method="post" action="/player/{{ p.dota_id }}/blacklist" data-confirm="Blacklist {{ p.dota_name or p.dota_id }}?"><input type="hidden" name="return_to" value="/"><input type="hidden" name="reason" value="queue_blacklist"><button class="btn icon-btn block-action" type="submit" title="Block player" aria-label="Block player"><span aria-hidden="true">×</span></button></form>
+          <form method="post" action="/player/{{ p.dota_id }}/delete" data-confirm="Delete {{ p.dota_name or p.dota_id }} from database? This cannot be undone."><input type="hidden" name="return_to" value="/"><button class="btn icon-btn delete-action" type="submit" title="Delete from database" aria-label="Delete from database"><span aria-hidden="true">🗑</span></button></form>
         </td>
       </tr>
     {% endfor %}
