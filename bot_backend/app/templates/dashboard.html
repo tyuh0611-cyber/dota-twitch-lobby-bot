@@ -10,11 +10,10 @@
     <a class="btn" href="/">Refresh</a>
     <form method="post" action="/quick-invite" data-confirm="Send quick invites by current queue priority?" class="quick-invite-form">
       <input type="hidden" name="return_to" value="/">
-      <div class="stepper" data-stepper>
-        <button type="button" data-step="-1">−</button>
+      <label>Quick invite count
+        <span class="muted">Invites first N players from the current priority queue.</span>
         <input name="limit" type="number" min="1" max="10" value="1">
-        <button type="button" data-step="1">+</button>
-      </div>
+      </label>
       <button class="btn primary" type="submit">Quick invite</button>
     </form>
   </div>
@@ -43,12 +42,8 @@
       <label>Special first
         <input name="special_first_twitch_names" value="{{ settings.special_first_twitch_names or '' }}" placeholder="EZ25,login2">
       </label>
-      <label>Invite timeout
-        <div class="stepper" data-stepper>
-          <button type="button" data-step="-5">−</button>
-          <input name="invite_timeout_seconds" type="number" min="5" max="600" value="{{ settings.invite_timeout_seconds }}">
-          <button type="button" data-step="5">+</button>
-        </div>
+      <label>Invite timeout, sec
+        <input name="invite_timeout_seconds" type="number" min="5" max="600" value="{{ settings.invite_timeout_seconds }}">
       </label>
       <button class="btn primary" type="submit">Save settings</button>
     </form>
@@ -71,15 +66,11 @@
 </div>
 
 <div class="panel form-panel">
-  <div class="panel-head"><h2>Add player / slots</h2><span class="muted">quick add</span></div>
+  <div class="panel-head"><h2>Add player / slots</h2><span class="muted">quick add by Dota ID</span></div>
   <form method="post" action="/players/add" class="inline-form">
     <input type="hidden" name="return_to" value="/">
     <input name="dota_id" placeholder="Dota ID" required>
-    <div class="stepper" data-stepper>
-      <button type="button" data-step="-1">−</button>
-      <input name="slots" type="number" min="1" value="1" required>
-      <button type="button" data-step="1">+</button>
-    </div>
+    <input name="slots" type="number" min="1" value="1" required placeholder="Slots">
     <button class="btn primary" type="submit">Add</button>
   </form>
 </div>
