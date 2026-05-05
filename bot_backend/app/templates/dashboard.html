@@ -3,8 +3,8 @@
 <section class="hero compact-hero">
   <div>
     <span class="eyebrow">Control Center</span>
-    <h1>Lobby, queue, settings and players</h1>
-    <p>All core actions are available here without switching pages.</p>
+    <h1>Lobby, queue and players</h1>
+    <p>Core actions are available here without switching pages.</p>
   </div>
   <div class="head-actions">
     <a class="btn" href="/">Refresh</a>
@@ -20,15 +20,8 @@
   </div>
 </section>
 
-<div class="stats-grid">
-  <div class="stat-card"><span>Total players</span><strong>{{ total_players }}</strong></div>
-  <div class="stat-card"><span>Active players</span><strong>{{ active_players }}</strong></div>
-  <div class="stat-card"><span>Slots left</span><strong>{{ total_slots }}</strong></div>
-  <div class="stat-card"><span>Blacklisted</span><strong>{{ blacklisted }}</strong></div>
-</div>
-
-<div class="control-grid">
-  <div class="panel control-panel">
+<div class="control-stack">
+  <div class="panel control-panel settings-panel">
     <div class="panel-head"><h2>Settings</h2><span class="muted">applies immediately</span></div>
     <form method="post" action="/settings" class="settings-grid">
       <input type="hidden" name="return_to" value="/">
@@ -61,12 +54,12 @@
     </form>
   </div>
 
-  <div class="panel control-panel">
+  <div class="panel control-panel lobby-panel">
     <div class="panel-head"><h2>Lobby</h2><a href="/lobby">full page</a></div>
     {% if lobby_error %}<div class="alert">{{ lobby_error }}</div>{% endif %}
     {% if lobby and lobby.lobby_exists %}
       <div class="lobby-summary"><strong>{{ lobby.lobby_id }}</strong><span>{{ lobby.members|length }} members</span></div>
-      <div class="mini-list">
+      <div class="mini-list lobby-list-large">
       {% for m in lobby.members %}
         <div><span>{{ m.dota_name or '-' }}</span><small>{{ m.dota_id or '-' }}</small></div>
       {% endfor %}
@@ -89,15 +82,6 @@
     </div>
     <button class="btn primary" type="submit">Add</button>
   </form>
-</div>
-
-<div class="logic-card">
-  <div>
-    <span class="eyebrow">Queue logic</span>
-    <h2>{{ settings.queue_strategy or 'oldest_played' }}</h2>
-    <p>Twitch online: <strong>{{ settings.require_twitch_online }}</strong> · Special first: <strong>{{ settings.special_first_twitch_names or '-' }}</strong> · Timeout: <strong>{{ settings.invite_timeout_seconds }}s</strong></p>
-  </div>
-  <a class="btn" href="#queue-table">Go to queue</a>
 </div>
 
 <div class="panel table-panel" id="queue-table">
