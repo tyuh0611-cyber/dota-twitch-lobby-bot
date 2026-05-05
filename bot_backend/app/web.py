@@ -10,6 +10,7 @@ from .crud import add_slots, blacklist_player, charge_slot_after_game, link_play
 from .db import get_session
 from .models import Player, PlayerSlotLog
 from .selection import select_next_player
+from .settings_service import get_all_settings, set_setting
 from .twitch_proxy_client import streamer_proxy
 
 app = FastAPI(title='Dota Lobby Dashboard', version='0.1.0')
@@ -172,3 +173,35 @@ async def queue_page(request: Request, session: AsyncSession = Depends(get_sessi
 async def web_invite(steam_id: str):
     await streamer_proxy.invite(steam_id)
     return RedirectResponse('/queue', status_code=303)
+
+
+@app.get('/settings', response_class=HTMLResponse)
+async def settings_page(request: Request, session: AsyncSession = Depends(get_session)):
+    redirect = require_auth(request)
+    if redirect:
+        return redirect
+    current = await get_all_settings(session)
+    return templates.TemplateResponse('settings.html', {'request': request, 'settings': current})
+
+
+@app.post('/settings')
+async def settings_save(
+    require_twitch_online: str = Form(...),
+    special_first_twitch_names: str = Form(''),
+    queue_strategy: str = Form(...),
+    invite_timeout_seconds: int = Form(...),
+    session: AsyncSession = Depends(get_session),
+):
+    allowed_strategies = {'oldest_played', 'most_slots', 'recent_slot', 'recent_played', 'most_active'}
+    if queue_strategy not in allowed_strategies:
+        queue_strategy = 'oldest_played'
+    if invite_timeout_seconds < 5:
+        invite_timeout_seconds = 5
+    if invite_timeout_seconds > 600:
+        invite_timeout_seconds = 600
+
+    await set_setting(session, 'require_twitch_online', 'true' if require_twitch_online == 'true' else 'false')
+    await set_setting(session, 'special_first_twitch_names', special_first_twitch_names.strip())
+    await set_setting(session, 'queue_strategy', queue_strategy)
+    await set_setting(session, 'invite_timeout_seconds', str(invite_timeout_seconds))
+    return RedirectResponse('/settings', status_code=303)
