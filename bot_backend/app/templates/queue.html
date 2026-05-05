@@ -1,27 +1,107 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="page-head">
-  <div><h1>Invite Queue</h1><p>Next suggested player based on current strategy.</p></div>
-  <a class="btn" href="/queue">Refresh</a>
-</section>
-{% if error %}<div class="alert">{{ error }}</div>{% endif %}
-{% if player %}
-<div class="candidate-card">
   <div>
-    <span class="eyebrow">Next candidate</span>
-    <h1>{{ player.dota_name or player.dota_id }}</h1>
-    <p>Twitch: {{ player.twitch_name or '-' }} · Steam: {{ player.steam_id or '-' }}</p>
+    <h1>Invite Queue</h1>
+    <p>Ranked by current Settings. Double-click editable fields, change value, then press Save row.</p>
   </div>
-  <div class="candidate-actions">
-    <div class="stat-card"><span>Slots left</span><strong>{{ player.slots_left }}</strong></div>
-    <div class="stat-card"><span>Played</span><strong>{{ player.games_played }}</strong></div>
-    {% if player.steam_id %}
-    <form method="post" action="/invite/{{ player.steam_id }}"><button class="btn primary" type="submit">Send invite</button></form>
-    {% endif %}
-    <a class="btn" href="/player/{{ player.dota_id }}">Open profile</a>
+  <div class="head-actions">
+    <a class="btn" href="/queue">Refresh</a>
+    <form method="post" action="/quick-invite" data-confirm="Send quick invites by current queue priority?" class="quick-invite-form">
+      <input name="limit" type="number" min="1" max="10" value="1" title="Invite count">
+      <button class="btn primary" type="submit">Quick invite</button>
+    </form>
   </div>
+</section>
+
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+<div class="logic-card">
+  <div>
+    <span class="eyebrow">Current queue logic</span>
+    <h2>{{ settings.queue_strategy or 'oldest_played' }}</h2>
+    <p>
+      Twitch online: <strong>{{ settings.require_twitch_online }}</strong> ·
+      Special first: <strong>{{ settings.special_first_twitch_names or '-' }}</strong> ·
+      Invite timeout: <strong>{{ settings.invite_timeout_seconds }}s</strong>
+    </p>
+  </div>
+  <a class="btn" href="/settings">Change settings</a>
 </div>
-{% else %}
-<div class="panel"><h2>No candidate found</h2><p>Add players, slots, links, or disable Twitch-online filter.</p></div>
-{% endif %}
+
+<div class="panel table-panel">
+  {% if ranked %}
+  <table class="queue-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Priority reason</th>
+        <th>Twitch</th>
+        <th>Dota</th>
+        <th>Steam ID</th>
+        <th>Slots</th>
+        <th>Played</th>
+        <th>Comment</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in ranked %}
+      {% set p = item.player %}
+      <tr class="queue-row {% if loop.first %}top-row{% endif %}">
+        <td><span class="rank-pill">{{ item.rank }}</span></td>
+        <td>
+          <div class="reason-text">{{ item.reason }}</div>
+          <div class="mini-flags">
+            {% if item.is_special %}<span class="badge warn-badge">special</span>{% endif %}
+            {% if item.is_online %}<span class="badge ok">online</span>{% endif %}
+          </div>
+        </td>
+        <td class="editable" data-name="twitch_name">{{ p.twitch_name or '' }}</td>
+        <td>
+          <div class="strong editable" data-name="dota_name">{{ p.dota_name or '' }}</div>
+          <div class="muted">{{ p.dota_id }}</div>
+        </td>
+        <td class="editable mono" data-name="steam_id">{{ p.steam_id or '' }}</td>
+        <td class="editable numeric" data-name="slots_left">{{ p.slots_left }}</td>
+        <td>{{ p.games_played }}</td>
+        <td class="editable comment-cell" data-name="comment">{{ p.comment or '' }}</td>
+        <td class="actions-cell">
+          <form method="post" action="/player/{{ p.dota_id }}/quick-edit" class="inline-save-form">
+            <input type="hidden" name="return_to" value="/queue">
+            <input type="hidden" name="twitch_name" value="{{ p.twitch_name or '' }}">
+            <input type="hidden" name="steam_id" value="{{ p.steam_id or '' }}">
+            <input type="hidden" name="dota_name" value="{{ p.dota_name or '' }}">
+            <input type="hidden" name="slots_left" value="{{ p.slots_left }}">
+            <input type="hidden" name="comment" value="{{ p.comment or '' }}">
+            <button class="btn small" type="submit">Save row</button>
+          </form>
+          {% if p.steam_id %}
+          <form method="post" action="/invite/{{ p.steam_id }}" data-confirm="Invite {{ p.dota_name or p.dota_id }}?">
+            <input type="hidden" name="return_to" value="/queue">
+            <button class="btn primary small" type="submit">Invite</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/player/{{ p.dota_id }}/charge" data-confirm="Charge -1 slot from {{ p.dota_name or p.dota_id }}?">
+            <input type="hidden" name="return_to" value="/queue">
+            <button class="btn warn small" type="submit">-1 slot</button>
+          </form>
+          <form method="post" action="/player/{{ p.dota_id }}/blacklist" data-confirm="Blacklist {{ p.dota_name or p.dota_id }}?">
+            <input type="hidden" name="return_to" value="/queue">
+            <input type="hidden" name="reason" value="queue_blacklist">
+            <button class="btn danger small" type="submit">Block</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <h2>No eligible players found</h2>
+    <p>Add players with slots, link Steam IDs, or change queue filters in Settings.</p>
+    <a class="btn primary" href="/players">Add players</a>
+  </div>
+  {% endif %}
+</div>
 {% endblock %}
