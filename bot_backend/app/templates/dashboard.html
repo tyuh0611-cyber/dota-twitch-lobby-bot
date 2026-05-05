@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Lobby Control Dashboard</h1>
+    <p>Queue, slots, lobby state and player profiles in one Dota-themed panel.</p>
+  </div>
+  <a class="btn primary" href="/queue">Next Candidate</a>
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card"><span>Total players</span><strong>{{ total_players }}</strong></div>
+  <div class="stat-card"><span>Active players</span><strong>{{ active_players }}</strong></div>
+  <div class="stat-card"><span>Slots left</span><strong>{{ total_slots }}</strong></div>
+  <div class="stat-card"><span>Blacklisted</span><strong>{{ blacklisted }}</strong></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Top players by slots</h2><a href="/players">View all</a></div>
+  <table>
+    <thead><tr><th>Dota ID</th><th>Twitch</th><th>Dota name</th><th>Slots</th><th>Played</th></tr></thead>
+    <tbody>
+    {% for p in players %}
+      <tr>
+        <td><a href="/player/{{ p.dota_id }}">{{ p.dota_id }}</a></td>
+        <td>{{ p.twitch_name or '-' }}</td>
+        <td>{{ p.dota_name or '-' }}</td>
+        <td>{{ p.slots_left }}</td>
+        <td>{{ p.games_played }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
