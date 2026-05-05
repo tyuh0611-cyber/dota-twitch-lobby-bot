@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from .selection import select_next_player
 from .twitch_proxy_client import streamer_proxy
 
 app = FastAPI(title='Dota Lobby Dashboard', version='0.1.0')
+app.mount('/static', StaticFiles(directory='app/static'), name='static')
 templates = Jinja2Templates(directory='app/templates')
 
 
@@ -31,9 +33,9 @@ async def login_page(request: Request):
 
 
 @app.post('/login')
-async def login(username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if username != settings.web_admin_username or password != settings.web_admin_password:
-        return templates.TemplateResponse('login.html', {'request': {}, 'error': 'Invalid login or password'}, status_code=401)
+        return templates.TemplateResponse('login.html', {'request': request, 'error': 'Invalid login or password'}, status_code=401)
     response = RedirectResponse('/', status_code=303)
     response.set_cookie('web_auth', settings.web_session_secret, httponly=True, samesite='strict')
     return response
