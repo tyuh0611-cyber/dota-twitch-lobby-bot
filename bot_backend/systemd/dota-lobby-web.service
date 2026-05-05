@@ -1,0 +1,20 @@
+[Unit]
+Description=Dota Twitch Lobby Web Dashboard
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/dota-twitch-lobby-bot/bot_backend
+EnvironmentFile=/opt/dota-twitch-lobby-bot/bot_backend/.env
+ExecStart=/opt/dota-twitch-lobby-bot/bot_backend/.venv/bin/uvicorn app.web_main:app --host ${WEB_HOST} --port ${WEB_PORT}
+Restart=always
+RestartSec=5
+User=dota-lobby-bot
+Group=dota-lobby-bot
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
