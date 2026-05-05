@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .crud import add_slots, blacklist_player, charge_slot_after_game, link_player, set_comment, set_slots, unblacklist_player
+from .csrf import CSRF_COOKIE_NAME, csrf_guard, csrf_token_for_request
 from .db import get_session
 from .models import Player, PlayerSlotLog
 from .selection import ranked_queue_players, select_next_player
@@ -32,6 +33,14 @@ def require_auth(request: Request) -> RedirectResponse | None:
     if not authed(request):
         return RedirectResponse('/login', status_code=303)
     return None
+
+
+def render_template(template_name: str, context: dict, request: Request):
+    csrf_token = csrf_token_for_request(request)
+    response = templates.TemplateResponse(template_name, {**context, 'request': request, 'csrf_token': csrf_token})
+    if request.cookies.get(CSRF_COOKIE_NAME) != csrf_token:
+        response.set_cookie(CSRF_COOKIE_NAME, csrf_token, httponly=True, samesite='strict')
+    return response
 
 
 async def control_center_context(request: Request, session: AsyncSession) -> dict:
@@ -92,6 +101,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
 async def logout():
     response = RedirectResponse('/login', status_code=303)
     response.delete_cookie('web_auth')
+    response.delete_cookie(CSRF_COOKIE_NAME)
     return response
 
 
@@ -100,7 +110,7 @@ async def dashboard(request: Request, session: AsyncSession = Depends(get_sessio
     redirect = require_auth(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse('dashboard.html', await control_center_context(request, session))
+    return render_template('dashboard.html', await control_center_context(request, session), request)
 
 
 @app.get('/players', response_class=HTMLResponse)
@@ -113,7 +123,7 @@ async def players_page(request: Request, q: str = '', session: AsyncSession = De
         like = f'%{q}%'
         stmt = select(Player).where((Player.dota_id.ilike(like)) | (Player.twitch_name.ilike(like)) | (Player.dota_name.ilike(like)) | (Player.steam_id.ilike(like))).order_by(Player.slots_left.desc()).limit(200)
     result = await session.execute(stmt)
-    return templates.TemplateResponse('players.html', {'request': request, 'players': result.scalars().all(), 'q': q})
+    return render_template('players.html', {'players': result.scalars().all(), 'q': q}, request)
 
 
 @app.get('/player/{dota_id}', response_class=HTMLResponse)
@@ -125,28 +135,28 @@ async def player_page(request: Request, dota_id: str, session: AsyncSession = De
     logs = []
     if player:
         logs = (await session.execute(select(PlayerSlotLog).where(PlayerSlotLog.player_id == player.id).order_by(PlayerSlotLog.created_at.desc()).limit(25))).scalars().all()
-    return templates.TemplateResponse('player.html', {'request': request, 'player': player, 'logs': logs})
+    return render_template('player.html', {'player': player, 'logs': logs}, request)
 
 
-@app.post('/players/add')
+@app.post('/players/add', dependencies=[Depends(csrf_guard)])
 async def web_add_player(dota_id: str = Form(...), slots: int = Form(...), return_to: str = Form('/'), session: AsyncSession = Depends(get_session)):
     await add_slots(session, dota_id, slots, created_by='web')
     return RedirectResponse(with_notice(return_to, f'Added {slots} slots to {dota_id}'), status_code=303)
 
 
-@app.post('/player/{dota_id}/link')
+@app.post('/player/{dota_id}/link', dependencies=[Depends(csrf_guard)])
 async def web_link_player(dota_id: str, twitch_name: str = Form(''), steam_id: str = Form(''), dota_name: str = Form(''), session: AsyncSession = Depends(get_session)):
     await link_player(session, dota_id, twitch_name or None, steam_id or None, dota_name or None)
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Player links saved'), status_code=303)
 
 
-@app.post('/player/{dota_id}/slots')
+@app.post('/player/{dota_id}/slots', dependencies=[Depends(csrf_guard)])
 async def web_set_slots(dota_id: str, slots: int = Form(...), session: AsyncSession = Depends(get_session)):
     await set_slots(session, dota_id, slots, created_by='web')
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Slots updated'), status_code=303)
 
 
-@app.post('/player/{dota_id}/quick-edit')
+@app.post('/player/{dota_id}/quick-edit', dependencies=[Depends(csrf_guard)])
 async def web_quick_edit_player(
     dota_id: str,
     twitch_name: str = Form(''),
@@ -163,25 +173,25 @@ async def web_quick_edit_player(
     return RedirectResponse(with_notice(return_to, f'Saved {dota_id}'), status_code=303)
 
 
-@app.post('/player/{dota_id}/charge')
+@app.post('/player/{dota_id}/charge', dependencies=[Depends(csrf_guard)])
 async def web_charge(dota_id: str, return_to: str = Form(None), session: AsyncSession = Depends(get_session)):
     await charge_slot_after_game(session, dota_id, created_by='web')
     return RedirectResponse(with_notice(return_to or f'/player/{dota_id}', f'Charged -1 slot from {dota_id}'), status_code=303)
 
 
-@app.post('/player/{dota_id}/comment')
+@app.post('/player/{dota_id}/comment', dependencies=[Depends(csrf_guard)])
 async def web_comment(dota_id: str, comment: str = Form(''), session: AsyncSession = Depends(get_session)):
     await set_comment(session, dota_id, comment or None)
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Comment saved'), status_code=303)
 
 
-@app.post('/player/{dota_id}/blacklist')
+@app.post('/player/{dota_id}/blacklist', dependencies=[Depends(csrf_guard)])
 async def web_blacklist(dota_id: str, reason: str = Form(''), return_to: str = Form(None), session: AsyncSession = Depends(get_session)):
     await blacklist_player(session, dota_id, reason or 'web')
     return RedirectResponse(with_notice(return_to or f'/player/{dota_id}', f'Blocked {dota_id}', 'warning'), status_code=303)
 
 
-@app.post('/player/{dota_id}/unblacklist')
+@app.post('/player/{dota_id}/unblacklist', dependencies=[Depends(csrf_guard)])
 async def web_unblacklist(dota_id: str, session: AsyncSession = Depends(get_session)):
     await unblacklist_player(session, dota_id)
     return RedirectResponse(with_notice(f'/player/{dota_id}', 'Player unblocked'), status_code=303)
@@ -198,7 +208,7 @@ async def lobby_page(request: Request):
         lobby = await streamer_proxy.get_lobby()
     except Exception as exc:
         error = str(exc)
-    return templates.TemplateResponse('lobby.html', {'request': request, 'lobby': lobby, 'error': error})
+    return render_template('lobby.html', {'lobby': lobby, 'error': error}, request)
 
 
 @app.get('/queue', response_class=HTMLResponse)
@@ -215,16 +225,16 @@ async def queue_page(request: Request, session: AsyncSession = Depends(get_sessi
         ranked, queue_settings = await ranked_queue_players(session, online_names)
     except Exception as exc:
         error = str(exc)
-    return templates.TemplateResponse('queue.html', {'request': request, 'ranked': ranked, 'settings': queue_settings, 'error': error})
+    return render_template('queue.html', {'ranked': ranked, 'settings': queue_settings, 'error': error}, request)
 
 
-@app.post('/invite/{steam_id}')
+@app.post('/invite/{steam_id}', dependencies=[Depends(csrf_guard)])
 async def web_invite(steam_id: str, return_to: str = Form('/')):
     await streamer_proxy.invite(steam_id)
     return RedirectResponse(with_notice(return_to, f'Invite sent to {steam_id}'), status_code=303)
 
 
-@app.post('/quick-invite')
+@app.post('/quick-invite', dependencies=[Depends(csrf_guard)])
 async def web_quick_invite(limit: int = Form(1), return_to: str = Form('/'), session: AsyncSession = Depends(get_session)):
     chatters = await streamer_proxy.get_chatters()
     online_names = {c.get('user_login', '').lower() for c in chatters if c.get('user_login')}
@@ -244,10 +254,10 @@ async def settings_page(request: Request, session: AsyncSession = Depends(get_se
     if redirect:
         return redirect
     current = await get_all_settings(session)
-    return templates.TemplateResponse('settings.html', {'request': request, 'settings': current})
+    return render_template('settings.html', {'settings': current}, request)
 
 
-@app.post('/settings')
+@app.post('/settings', dependencies=[Depends(csrf_guard)])
 async def settings_save(require_twitch_online: str = Form(...), special_first_twitch_names: str = Form(''), queue_strategy: str = Form(...), invite_timeout_seconds: int = Form(...), return_to: str = Form('/'), session: AsyncSession = Depends(get_session)):
     allowed_strategies = {'oldest_played', 'most_slots', 'recent_slot', 'recent_played', 'most_active'}
     if queue_strategy not in allowed_strategies:
