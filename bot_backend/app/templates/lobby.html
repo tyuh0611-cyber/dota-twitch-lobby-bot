@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head">
+  <div><h1>Current Lobby</h1><p>Live lobby state from streamer proxy.</p></div>
+</section>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<div class="panel">
+  {% if lobby and lobby.lobby_exists %}
+    <h2>Lobby: {{ lobby.lobby_id }}</h2>
+    <table>
+      <thead><tr><th>Dota name</th><th>Dota ID</th><th>Steam ID</th></tr></thead>
+      <tbody>
+      {% for m in lobby.members %}
+        <tr><td>{{ m.dota_name or '-' }}</td><td>{{ m.dota_id or '-' }}</td><td>{{ m.steam_id or '-' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <h2>No lobby detected</h2>
+  {% endif %}
+</div>
+{% endblock %}
